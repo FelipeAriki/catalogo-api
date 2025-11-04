@@ -1,20 +1,19 @@
-﻿using APICatalogo.Context;
-using APICatalogo.Models;
+﻿using APICatalogo.Models;
+using APICatalogo.Repositories;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace APICatalogo.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ProdutosController(AppDbContext appDbContext) : ControllerBase
+    public class ProdutosController(IProdutoRepository produtoRepository) : ControllerBase
     {
-        private readonly AppDbContext _appDbContext = appDbContext;
+        private readonly IProdutoRepository _repository = produtoRepository;
 
         [HttpGet]
         public ActionResult<IEnumerable<Produto>> ObterProdutos()
         {
-                var produtos = _appDbContext.Produto?.AsNoTracking().ToList();
+                var produtos = _repository.ObterProdutos().ToList();
                 if (produtos is null)
                     return NotFound();
                 return Ok(produtos);
@@ -23,7 +22,7 @@ namespace APICatalogo.Controllers
         [HttpGet("{id:int:min(1)}", Name = "ObterProduto")]
         public ActionResult<Produto> ObterProduto(int id)
         {
-                var produtos = _appDbContext.Produto?.AsNoTracking().FirstOrDefault(p => p.Id == id);
+                var produtos = _repository.ObterProduto(id);
                 if (produtos is null)
                     return NotFound("Produto não encontrado!");
                 return Ok(produtos);
@@ -35,9 +34,8 @@ namespace APICatalogo.Controllers
                 if (produto == null)
                     return BadRequest();
 
-                _appDbContext.Add(produto);
-                _appDbContext.SaveChanges();
-                return new CreatedAtRouteResult("ObterProduto", new { id = produto.Id }, produto);
+            var novoProduto = _repository.InserirProduto(produto);
+            return new CreatedAtRouteResult("ObterProduto", new { id = novoProduto.Id }, novoProduto);
         }
 
         /*
@@ -56,25 +54,17 @@ namespace APICatalogo.Controllers
                 if (id != produto.Id)
                     return BadRequest();
 
-                _appDbContext.Entry(produto).State = EntityState.Modified;
-                _appDbContext.SaveChanges();
-
-                return Ok(produto);
+            bool sucesso = _repository.AlterarProduto(produto);
+            if (sucesso) return Ok(produto);
+            return StatusCode(500, $"Falha ao atualizar o produto de id: {id}");
         }
 
         [HttpDelete("{id:int:min(1)}")]
         public ActionResult RemoverProduto(int id)
         {
-                var produto = _appDbContext.Produto?.FirstOrDefault(p => p.Id == id);
-                //var produto = _appDbContext.Produto.Find(id);
-
-                if (produto == null)
-                    return NotFound("Produto não encontrado.");
-
-                _appDbContext.Remove(produto);
-                _appDbContext.SaveChanges();
-
-                return Ok();
+            bool sucesso = _repository.RemoverProduto(id);
+            if (sucesso) return Ok($"Produto de id: {id} foi excluído com sucesso!");
+            return StatusCode(500, $"Falha ao remover o produto de id: {id}");
         }
     }
 }
