@@ -2,12 +2,7 @@
 
 namespace APICatalogo.Repositories
 {
-    public interface ICategoriaRepository
+    public interface ICategoriaRepository : IRepository<Categoria>
     {
-        IEnumerable<Categoria> ObterCategoriasAsync();
-        Categoria ObterCategoria(int id);
-        Categoria InserirCategoria(Categoria categoria);
-        Categoria AlterarCategoria(Categoria categoria);
-        Categoria RemoverCategoria(int id);
     }
 }
