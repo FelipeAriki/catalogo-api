@@ -10,7 +10,7 @@ namespace APICatalogo.Repositories
 
         public IEnumerable<T> ObterTodos()
         {
-            return _appDbContext.Set<T>().ToList();
+            return _appDbContext.Set<T>().AsNoTracking().ToList();
         }
 
         public T? Obter(Expression<Func<T, bool>> predicate)
@@ -21,21 +21,21 @@ namespace APICatalogo.Repositories
         public T Inserir(T entidade)
         {
             _appDbContext.Set<T>().Add(entidade);
-            _appDbContext.SaveChanges();
+            //_appDbContext.SaveChanges();
             return entidade;
         }
 
         public T Alterar(T entidade)
         {
             _appDbContext.Set<T>().Update(entidade);
-            _appDbContext.SaveChanges();
+            //_appDbContext.SaveChanges();
             return entidade;
         }
 
         public T Remover(T entidade)
         {
             _appDbContext.Set<T>().Remove(entidade);
-            _appDbContext.SaveChanges();
+            //_appDbContext.SaveChanges();
             return entidade;
         }
     }
