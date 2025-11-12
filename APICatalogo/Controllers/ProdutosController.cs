@@ -1,4 +1,6 @@
-﻿using APICatalogo.Models;
+﻿using APICatalogo.DTOs;
+using APICatalogo.DTOs.Mappings;
+using APICatalogo.Models;
 using APICatalogo.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,65 +13,64 @@ namespace APICatalogo.Controllers
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
         [HttpGet("produtos/{id:int}")]
-        public ActionResult<IEnumerable<Produto>> ObterProdutosPorCategoria(int id)
+        public ActionResult<IEnumerable<ProdutoDTO>> ObterProdutosPorCategoria(int id)
         {
             var produtos = _unitOfWork.ProdutoRepository.ObterProdutosPorCategoria(id);
-            if (produtos == null) return NotFound("Produtos não encontrados.");
-            return Ok(produtos);
+            if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
+            return Ok(produtos.ToCategoriaDTOList());
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<Produto>> ObterProdutos()
+        public ActionResult<IEnumerable<ProdutoDTO>> ObterProdutos()
         {
-                var produtos = _unitOfWork.ProdutoRepository.ObterTodos();
-                if (produtos is null)
-                    return NotFound();
-                return Ok(produtos);
+            var produtos = _unitOfWork.ProdutoRepository.ObterTodos();
+            if (produtos is null) return NotFound("Nenhum produto encontrado.");
+
+            return Ok(produtos.ToCategoriaDTOList());
         }
 
         [HttpGet("{id:int:min(1)}", Name = "ObterProduto")]
-        public ActionResult<Produto> ObterProduto(int id)
+        public ActionResult<ProdutoDTO> ObterProduto(int id)
         {
                 var produtos = _unitOfWork.CategoriaRepository.Obter(c => c.Id == id);
                 if (produtos is null)
-                    return NotFound("Produto não encontrado!");
-                return Ok(produtos);
+                    return NotFound("Produto não encontrado.");
+
+                return Ok(produtos.ToCategoriaDTO());
         }
 
         [HttpPost]
-        public ActionResult InserirProduto(Produto produto)
+        public ActionResult InserirProduto(ProdutoDTO produtoDTO)
         {
-                if (produto == null)
-                    return BadRequest();
+            if (produtoDTO == null)
+                return BadRequest("Informações inválidas.");
 
-            var novoProduto = _unitOfWork.ProdutoRepository.Inserir(produto);
+            var produto = produtoDTO.ToCategoria();
+
+            var produtoCriado = _unitOfWork.ProdutoRepository.Inserir(produto);
             _unitOfWork.Commit();
-            return new CreatedAtRouteResult("ObterProduto", new { id = novoProduto.Id }, novoProduto);
-        }
 
-        /*
-         Antes de existir o [ApiController] era necessário fazer o endpoint dessa maneira
-         [HttpPost]
-        public ActionResult Post([FromBody] Produto produto)
-        {
-            if(!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var produtoCriadoDTO = produtoCriado.ToCategoriaDTO();
+
+            return new CreatedAtRouteResult("ObterProduto", new { id = produtoCriadoDTO.Id }, produtoCriadoDTO);
         }
-         */
 
         [HttpPut("{id:int:min(1)}")]
-        public ActionResult AlterarProduto(int id, Produto produto)
+        public ActionResult<ProdutoDTO> AlterarProduto(int id, ProdutoDTO produtoDTO)
         {
-                if (id != produto.Id)
+                if (id != produtoDTO.Id)
                     return BadRequest();
 
-            var produtoAtualizado = _unitOfWork.ProdutoRepository.Alterar(produto);
+            var produto = produtoDTO.ToCategoria();
+
+            var produtoAtualizadoDTO = _unitOfWork.ProdutoRepository.Alterar(produto);
             _unitOfWork.Commit();
-            return Ok(produtoAtualizado);
+
+            return Ok(produtoAtualizadoDTO.ToCategoriaDTO());
         }
 
         [HttpDelete("{id:int:min(1)}")]
-        public ActionResult RemoverProduto(int id)
+        public ActionResult<int> RemoverProduto(int id)
         {
             var produto = _unitOfWork.CategoriaRepository.Obter(p => p.Id == id);
             if (produto is null) return NotFound("Produto não encontrado.");
