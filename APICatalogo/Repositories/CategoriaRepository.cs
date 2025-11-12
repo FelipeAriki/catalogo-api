@@ -11,5 +11,13 @@ namespace APICatalogo.Repositories
             var categorias = ObterTodos().OrderBy(c => c.Id).AsQueryable();
             return PagedList<Categoria>.ToPagedList(categorias, categoriasParameters.PageNumber, categoriasParameters.PageSize);
         }
+
+        public PagedList<Categoria> ObterCategoriasFiltroNome(CategoriasFiltroNome categoriasFiltroNome)
+        {
+            var categorias = ObterTodos().AsQueryable();
+            if (!string.IsNullOrEmpty(categoriasFiltroNome.Nome))
+                categorias = categorias.Where(c => c.Nome.Contains(categoriasFiltroNome.Nome));
+            return PagedList<Categoria>.ToPagedList(categorias, categoriasFiltroNome.PageNumber, categoriasFiltroNome.PageSize);
+        }
     }
 }
