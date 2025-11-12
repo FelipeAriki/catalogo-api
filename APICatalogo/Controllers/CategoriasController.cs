@@ -1,8 +1,11 @@
 ﻿using APICatalogo.DTOs;
 using APICatalogo.DTOs.Mappings;
 using APICatalogo.Models;
+using APICatalogo.Pagination;
 using APICatalogo.Repositories;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 
 namespace APICatalogo.Controllers
 {
@@ -12,6 +15,24 @@ namespace APICatalogo.Controllers
     {
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
         private readonly ILogger<CategoriasController> _logger = logger;
+
+        [HttpGet("pagination")]
+        public ActionResult<IEnumerable<CategoriaDTO>> ObterCategoriasPaginado([FromQuery] CategoriasParameters categoriasParameters)
+        {
+            var categorias = _unitOfWork.CategoriaRepository.ObterCategorias(categoriasParameters);
+            var metadata = new
+            {
+                categorias.TotalCount,
+                categorias.PageSize,
+                categorias.CurrentPage,
+                categorias.TotalPages,
+                categorias.HasNext,
+                categorias.HasPrevious
+            };
+
+            Response.Headers.Append("X-Pagination", JsonConvert.SerializeObject(metadata));
+            return Ok(categorias.ToCategoriaDTOList());
+        }
 
         [HttpGet]
         public ActionResult<IEnumerable<CategoriaDTO>> ObterCategorias()

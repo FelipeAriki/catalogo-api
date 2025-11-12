@@ -1,8 +1,10 @@
 ﻿using APICatalogo.DTOs;
 using APICatalogo.DTOs.Mappings;
 using APICatalogo.Models;
+using APICatalogo.Pagination;
 using APICatalogo.Repositories;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 
 namespace APICatalogo.Controllers
 {
@@ -17,6 +19,26 @@ namespace APICatalogo.Controllers
         {
             var produtos = _unitOfWork.ProdutoRepository.ObterProdutosPorCategoria(id);
             if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
+            return Ok(produtos.ToCategoriaDTOList());
+        }
+
+        [HttpGet("pagination")]
+        public ActionResult<IEnumerable<ProdutoDTO>> ObterProdutosPaginado([FromQuery] ProdutosParameters produtosParameters)
+        {
+            var produtos = _unitOfWork.ProdutoRepository.ObterProdutos(produtosParameters);
+            if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
+
+            var metadata = new
+            {
+                produtos.TotalCount,
+                produtos.PageSize,
+                produtos.CurrentPage,
+                produtos.TotalPages,
+                produtos.HasNext,
+                produtos.HasPrevious
+            };
+
+            Response.Headers.Append("X-Pagination", JsonConvert.SerializeObject(metadata));
             return Ok(produtos.ToCategoriaDTOList());
         }
 
