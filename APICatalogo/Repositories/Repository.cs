@@ -8,14 +8,14 @@ namespace APICatalogo.Repositories
     {
         protected readonly AppDbContext _appDbContext = appDbContext;
 
-        public IEnumerable<T> ObterTodos()
+        public async Task<IEnumerable<T>> ObterTodosAsync()
         {
-            return _appDbContext.Set<T>().AsNoTracking().ToList();
+            return await _appDbContext.Set<T>().AsNoTracking().ToListAsync();
         }
 
-        public T? Obter(Expression<Func<T, bool>> predicate)
+        public async Task<T?> ObterAsync(Expression<Func<T, bool>> predicate)
         {
-            return _appDbContext.Set<T>().FirstOrDefault(predicate);
+            return await _appDbContext.Set<T>().FirstOrDefaultAsync(predicate);
         }
 
         public T Inserir(T entidade)

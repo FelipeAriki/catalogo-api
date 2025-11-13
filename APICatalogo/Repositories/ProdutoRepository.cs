@@ -6,16 +6,16 @@ namespace APICatalogo.Repositories
 {
     public class ProdutoRepository(AppDbContext appDbContext) : Repository<Produto>(appDbContext), IProdutoRepository
     {
-        public PagedList<Produto> ObterProdutos(ProdutosParameters produtosParameters)
+        public async Task<PagedList<Produto>> ObterProdutosAsync(ProdutosParameters produtosParameters)
         {
-            var produtos = ObterTodos().OrderBy(p => p.Id).AsQueryable();
-            return PagedList<Produto>.ToPagedList(produtos, produtosParameters.PageNumber, produtosParameters.PageSize);
+            var produtos = await ObterTodosAsync();
+            return PagedList<Produto>.ToPagedList(produtos.OrderBy(p => p.Id).AsQueryable(), produtosParameters.PageNumber, produtosParameters.PageSize);
 
         }
 
-        public PagedList<Produto> ObterProdutosFiltroPreco(ProdutosFiltroPreco produtosFiltroPreco)
+        public async Task<PagedList<Produto>> ObterProdutosFiltroPrecoAsync(ProdutosFiltroPreco produtosFiltroPreco)
         {
-            var produtos = ObterTodos().AsQueryable();
+            var produtos = await ObterTodosAsync();
             if(produtosFiltroPreco.Preco.HasValue && !string.IsNullOrEmpty(produtosFiltroPreco.PrecoCriterio))
             {
                 if (produtosFiltroPreco.PrecoCriterio.Equals("maior", StringComparison.OrdinalIgnoreCase))
@@ -25,7 +25,7 @@ namespace APICatalogo.Repositories
                 else if (produtosFiltroPreco.PrecoCriterio.Equals("igual", StringComparison.OrdinalIgnoreCase))
                     produtos = produtos.Where(p => p.Preco == produtosFiltroPreco.Preco.Value).OrderBy(p => p.Preco);
             }
-            return PagedList<Produto>.ToPagedList(produtos, produtosFiltroPreco.PageNumber, produtosFiltroPreco.PageSize);
+            return PagedList<Produto>.ToPagedList(produtos.AsQueryable(), produtosFiltroPreco.PageNumber, produtosFiltroPreco.PageSize);
         }
 
         /*public IEnumerable<Produto> ObterProdutos(ProdutosParameters produtosParams)
@@ -36,9 +36,10 @@ namespace APICatalogo.Repositories
                .Take(produtosParams.PageSize).ToList();
         }*/
 
-        public IEnumerable<Produto> ObterProdutosPorCategoria(int id)
+        public async Task<IEnumerable<Produto>> ObterProdutosPorCategoriaAsync(int id)
         {
-            return ObterTodos().Where(c => c.CategoriaId == id);
+            var produtosPorCategoria = await ObterTodosAsync();
+            return produtosPorCategoria.Where(c => c.CategoriaId == id);
         }
     }
 }
