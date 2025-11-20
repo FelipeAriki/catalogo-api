@@ -1,6 +1,7 @@
 ﻿using APICatalogo.DTOs;
 using APICatalogo.Models;
 using APICatalogo.Services.Interface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
@@ -85,5 +86,47 @@ public class AuthController : ControllerBase
         if(!result.Succeeded)
             return StatusCode(StatusCodes.Status500InternalServerError, new ResponseDTO { Status = "Error", Message = "User creation failed!" });
         return Ok(new ResponseDTO { Status = "Success", Message = "User created successfuly!" });
+    }
+
+    [HttpPost]
+    [Route("refresh-token")]
+    public async Task<IActionResult> RefreshToken(TokenDTO tokenDTO)
+    {
+        if(tokenDTO == null)
+            return BadRequest("Invalid client request");
+
+        string? accessToken = tokenDTO.AccessToken ?? throw new ArgumentNullException(nameof(tokenDTO));
+        string? refreshToken = tokenDTO.RefreshToken ?? throw new ArgumentNullException(nameof(tokenDTO));
+        var principal = _tokenService.GetPrincipalFromExpiredToken(accessToken!, _configuration);
+        if (principal == null)
+            return BadRequest("Invalid access token/refresh token");
+
+        string userName = principal.Identity.Name;
+        var user = await _userManager.FindByNameAsync(userName!);
+        if (user == null || user.RefreshToken != refreshToken || user.RefreshTokenExpireTime <= DateTime.Now)
+            return BadRequest("Invalid access token/refresh token");
+
+        var newAccessToken = _tokenService.GenerateAccessToken(principal.Claims.ToList(), _configuration);
+        var newRefreshToken = _tokenService.GenerateRefreshToken();
+        user.RefreshToken = newRefreshToken;
+        await _userManager.UpdateAsync(user);
+
+        return new ObjectResult(new {
+            accessToken = new JwtSecurityTokenHandler().WriteToken(newAccessToken),
+            refreshToken = newRefreshToken,
+        });
+    }
+
+    [Authorize]
+    [HttpPost]
+    [Route("revoke/{username}")]
+    public async Task<IActionResult> Revoke(string userName)
+    {
+        var user = await _userManager.FindByNameAsync(userName);
+        if (user == null) return BadRequest("Invalid username.");
+
+        user.RefreshToken = null;
+        await _userManager.UpdateAsync(user);
+        return NoContent();
     }
 }
