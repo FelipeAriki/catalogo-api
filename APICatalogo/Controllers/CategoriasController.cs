@@ -3,6 +3,7 @@ using APICatalogo.DTOs.Mappings;
 using APICatalogo.Models;
 using APICatalogo.Pagination;
 using APICatalogo.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 
@@ -31,6 +32,7 @@ namespace APICatalogo.Controllers
             return ObterCategoriasPaginacao(categorias);
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CategoriaDTO>>> ObterCategorias()
         {

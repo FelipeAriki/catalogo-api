@@ -120,9 +120,9 @@ public class AuthController : ControllerBase
     [Authorize]
     [HttpPost]
     [Route("revoke/{username}")]
-    public async Task<IActionResult> Revoke(string userName)
+    public async Task<IActionResult> Revoke(string username)
     {
-        var user = await _userManager.FindByNameAsync(userName);
+        var user = await _userManager.FindByNameAsync(username);
         if (user == null) return BadRequest("Invalid username.");
 
         user.RefreshToken = null;
