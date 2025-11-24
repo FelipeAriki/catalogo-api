@@ -5,6 +5,7 @@ using APICatalogo.Pagination;
 using APICatalogo.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Newtonsoft.Json;
 using System.Threading.Tasks;
 
@@ -12,6 +13,7 @@ namespace APICatalogo.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    //[EnableRateLimiting("fixedwindow")]
     public class ProdutosController(IUnitOfWork unitOfWork) : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
