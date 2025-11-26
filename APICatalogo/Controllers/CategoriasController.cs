@@ -12,6 +12,7 @@ namespace APICatalogo.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces("application/json")]
     [EnableRateLimiting("fixedwindow")]
     public class CategoriasController(IUnitOfWork unitOfWork, ILogger<CategoriasController> logger) : ControllerBase
     {
@@ -34,6 +35,10 @@ namespace APICatalogo.Controllers
             return ObterCategoriasPaginacao(categorias);
         }
 
+        /// <summary>
+        /// Obtém uma lista de objetos Categoria
+        /// </summary>
+        /// <returns>Uma lista de objetos Categoria</returns>
         [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CategoriaDTO>>> ObterCategorias()
@@ -44,7 +49,14 @@ namespace APICatalogo.Controllers
             return Ok(categorias.ToCategoriaDTOList());
         }
 
+        /// <summary>
+        /// Obtém uma Categoria pelo seu ID
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns>Objeto Categoria</returns>
         [HttpGet("{id:int:min(1)}", Name = "ObterCategoria")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<CategoriaDTO>> ObterCategoria(int id)
         {
             var categoria = await _unitOfWork.CategoriaRepository.ObterAsync(c => c.Id == id);

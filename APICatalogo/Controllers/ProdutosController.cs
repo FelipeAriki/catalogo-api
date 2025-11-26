@@ -13,6 +13,7 @@ namespace APICatalogo.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces("application/json")]
     //[EnableRateLimiting("fixedwindow")]
     public class ProdutosController(IUnitOfWork unitOfWork) : ControllerBase
     {
@@ -44,6 +45,10 @@ namespace APICatalogo.Controllers
             return ObterProdutosPaginacao(produtos);
         }
 
+        /// <summary>
+        /// Obtém uma lista de objetos Produto
+        /// </summary>
+        /// <returns>Uma lista de objetos Produto</returns>
         [HttpGet]
         [Authorize(Policy = "UserOnly")]
         public async Task<ActionResult<IEnumerable<ProdutoDTO>>> ObterProdutos()
@@ -54,6 +59,11 @@ namespace APICatalogo.Controllers
             return Ok(produtos.ToCategoriaDTOList());
         }
 
+        /// <summary>
+        /// Obtém um Produto pelo seu ID
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns>Objeto Produto</returns>
         [HttpGet("{id:int:min(1)}", Name = "ObterProduto")]
         public async Task<ActionResult<ProdutoDTO>> ObterProduto(int id)
         {
