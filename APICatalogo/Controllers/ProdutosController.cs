@@ -1,13 +1,11 @@
 ﻿using APICatalogo.DTOs;
-using APICatalogo.DTOs.Mappings;
 using APICatalogo.Models;
 using APICatalogo.Pagination;
 using APICatalogo.Repositories;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Newtonsoft.Json;
-using System.Threading.Tasks;
 
 namespace APICatalogo.Controllers
 {
@@ -15,16 +13,17 @@ namespace APICatalogo.Controllers
     [Route("api/[controller]")]
     [Produces("application/json")]
     //[EnableRateLimiting("fixedwindow")]
-    public class ProdutosController(IUnitOfWork unitOfWork) : ControllerBase
+    public class ProdutosController(IUnitOfWork unitOfWork, IMapper mapper) : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
+        private readonly IMapper _mapper = mapper;
 
         [HttpGet("produtos/{id:int}")]
         public async Task<ActionResult<IEnumerable<ProdutoDTO>>> ObterProdutosPorCategoriaAsync(int id)
         {
             var produtos = await _unitOfWork.ProdutoRepository.ObterProdutosPorCategoriaAsync(id);
             if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
-            return Ok(produtos.ToCategoriaDTOList());
+            return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
         }
 
         [HttpGet("pagination")]
@@ -56,7 +55,7 @@ namespace APICatalogo.Controllers
             var produtos = await _unitOfWork.ProdutoRepository.ObterTodosAsync();
             if (produtos is null) return NotFound("Nenhum produto encontrado.");
 
-            return Ok(produtos.ToCategoriaDTOList());
+            return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
         }
 
         /// <summary>
@@ -71,7 +70,7 @@ namespace APICatalogo.Controllers
                 if (produtos is null)
                     return NotFound("Produto não encontrado.");
 
-                return Ok(produtos.ToCategoriaDTO());
+                return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
         }
 
         [HttpPost]
@@ -80,12 +79,12 @@ namespace APICatalogo.Controllers
             if (produtoDTO == null)
                 return BadRequest("Informações inválidas.");
 
-            var produto = produtoDTO.ToCategoria();
+            var produto = _mapper.Map<Produto>(produtoDTO);
 
             var produtoCriado = _unitOfWork.ProdutoRepository.Inserir(produto);
             await _unitOfWork.CommitAsync();
 
-            var produtoCriadoDTO = produtoCriado.ToCategoriaDTO();
+            var produtoCriadoDTO = _mapper.Map<ProdutoDTO>(produtoCriado);
 
             return new CreatedAtRouteResult("ObterProduto", new { id = produtoCriadoDTO?.Id }, produtoCriadoDTO);
         }
@@ -96,12 +95,12 @@ namespace APICatalogo.Controllers
                 if (id != produtoDTO.Id)
                     return BadRequest();
 
-            var produto = produtoDTO.ToCategoria();
+            var produto = _mapper.Map<Produto>(produtoDTO);
 
             var produtoAtualizadoDTO = _unitOfWork.ProdutoRepository.Alterar(produto);
             await _unitOfWork.CommitAsync();
 
-            return Ok(produtoAtualizadoDTO.ToCategoriaDTO());
+            return Ok(_mapper.Map<ProdutoDTO>(produtoAtualizadoDTO));
         }
 
         [HttpDelete("{id:int:min(1)}")]
@@ -128,7 +127,7 @@ namespace APICatalogo.Controllers
             };
 
             Response.Headers.Append("X-Pagination", JsonConvert.SerializeObject(metadata));
-            return Ok(produtos.ToCategoriaDTOList());
+            return Ok(_mapper.Map<ProdutoDTO>(produtos));
         }
     }
 }
