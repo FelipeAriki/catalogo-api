@@ -5,6 +5,7 @@ using APICatalogo.Repositories;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 
 namespace APICatalogo.Controllers
@@ -13,16 +14,24 @@ namespace APICatalogo.Controllers
     [Route("api/[controller]")]
     [Produces("application/json")]
     //[EnableRateLimiting("fixedwindow")]
-    public class ProdutosController(IUnitOfWork unitOfWork, IMapper mapper) : ControllerBase
+    public class ProdutosController(IUnitOfWork unitOfWork, IMapper mapper, IMemoryCache memoryCache) : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
         private readonly IMapper _mapper = mapper;
+        private readonly IMemoryCache _memoryCache = memoryCache;
+        private const string CacheProdutosKey = "CacheProdutos";
+        private const string CacheProdutosCategoriaPrefixo = "CacheProdutosCategoria_";
 
         [HttpGet("produtos/{id:int}")]
         public async Task<ActionResult<IEnumerable<ProdutoDTO>>> ObterProdutosPorCategoriaAsync(int id)
         {
-            var produtos = await _unitOfWork.ProdutoRepository.ObterProdutosPorCategoriaAsync(id);
-            if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
+            var cacheKey = ObterProdutoCacheKey(id);
+            if (!_memoryCache.TryGetValue(cacheKey, out IEnumerable<Produto>? produtos))
+            {
+                produtos = await _unitOfWork.ProdutoRepository.ObterProdutosPorCategoriaAsync(id);
+                if (produtos == null || !produtos.Any()) return NotFound("Produtos não encontrados.");
+                SetCache(cacheKey, produtos);
+            }
             return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
         }
 
@@ -52,8 +61,12 @@ namespace APICatalogo.Controllers
         [Authorize(Policy = "UserOnly")]
         public async Task<ActionResult<IEnumerable<ProdutoDTO>>> ObterProdutos()
         {
-            var produtos = await _unitOfWork.ProdutoRepository.ObterTodosAsync();
-            if (produtos is null) return NotFound("Nenhum produto encontrado.");
+            if (!_memoryCache.TryGetValue(CacheProdutosKey, out IEnumerable<Produto>? produtos))
+            {
+                produtos = await _unitOfWork.ProdutoRepository.ObterTodosAsync();
+                if (produtos is null || !produtos.Any()) return NotFound("Nenhum produto encontrado.");
+                SetCache(CacheProdutosKey, produtos);
+            }
 
             return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
         }
@@ -66,11 +79,14 @@ namespace APICatalogo.Controllers
         [HttpGet("{id:int:min(1)}", Name = "ObterProduto")]
         public async Task<ActionResult<ProdutoDTO>> ObterProduto(int id)
         {
-                var produtos = await _unitOfWork.CategoriaRepository.ObterAsync(c => c.Id == id);
-                if (produtos is null)
+            var cacheKey = ObterProdutoCacheKey(id);
+            if (!_memoryCache.TryGetValue(cacheKey, out Produto? produto))
+            {
+                produto = await _unitOfWork.ProdutoRepository.ObterAsync(c => c.Id == id);
+                if (produto is null)
                     return NotFound("Produto não encontrado.");
-
-                return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produtos));
+            }
+            return Ok(_mapper.Map<IEnumerable<ProdutoDTO>>(produto));
         }
 
         [HttpPost]
@@ -83,6 +99,8 @@ namespace APICatalogo.Controllers
 
             var produtoCriado = _unitOfWork.ProdutoRepository.Inserir(produto);
             await _unitOfWork.CommitAsync();
+
+            InvalidateCacheAfterChange(produtoCriado.Id, produtoCriado);
 
             var produtoCriadoDTO = _mapper.Map<ProdutoDTO>(produtoCriado);
 
@@ -100,17 +118,22 @@ namespace APICatalogo.Controllers
             var produtoAtualizadoDTO = _unitOfWork.ProdutoRepository.Alterar(produto);
             await _unitOfWork.CommitAsync();
 
+            InvalidateCacheAfterChange(id, produtoAtualizadoDTO);
+
             return Ok(_mapper.Map<ProdutoDTO>(produtoAtualizadoDTO));
         }
 
         [HttpDelete("{id:int:min(1)}")]
         public async Task<ActionResult<int>> RemoverProduto(int id)
         {
-            var produto = await _unitOfWork.CategoriaRepository.ObterAsync(p => p.Id == id);
+            var produto = await _unitOfWork.ProdutoRepository.ObterAsync(p => p.Id == id);
             if (produto is null) return NotFound("Produto não encontrado.");
 
-            var produtoRemovido = _unitOfWork.CategoriaRepository.Remover(produto);
+            var produtoRemovido = _unitOfWork.ProdutoRepository.Remover(produto);
             await _unitOfWork.CommitAsync();
+
+            InvalidateCacheAfterChange(id);
+
             return Ok(produtoRemovido.Id);
         }
 
@@ -128,6 +151,32 @@ namespace APICatalogo.Controllers
 
             Response.Headers.Append("X-Pagination", JsonConvert.SerializeObject(metadata));
             return Ok(_mapper.Map<ProdutoDTO>(produtos));
+        }
+
+        private string ObterProdutoCacheKey(int id) => $"CacheProduto_{id}";
+        private string ObterProdutosCategoriaCacheKey(int categoriaId) => $"{CacheProdutosCategoriaPrefixo}{categoriaId}";
+
+        private void SetCache<T>(string key, T data)
+        {
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30),
+                SlidingExpiration = TimeSpan.FromSeconds(15),
+                Priority = CacheItemPriority.High
+            };
+            _memoryCache.Set(key, data, cacheOptions);
+        }
+
+        private void InvalidateCacheAfterChange(int id, Produto? produto = null)
+        {
+            _memoryCache.Remove(CacheProdutosKey);
+            _memoryCache.Remove(ObterProdutoCacheKey(id));
+
+            if (produto != null)
+            {
+                _memoryCache.Remove(ObterProdutosCategoriaCacheKey(produto.CategoriaId));
+                SetCache(ObterProdutoCacheKey(id), produto);
+            }
         }
     }
 }
