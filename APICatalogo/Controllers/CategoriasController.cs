@@ -6,6 +6,7 @@ using APICatalogo.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 
 namespace APICatalogo.Controllers
@@ -14,10 +15,12 @@ namespace APICatalogo.Controllers
     [Route("api/[controller]")]
     [Produces("application/json")]
     [EnableRateLimiting("fixedwindow")]
-    public class CategoriasController(IUnitOfWork unitOfWork, ILogger<CategoriasController> logger) : ControllerBase
+    public class CategoriasController(IUnitOfWork unitOfWork, ILogger<CategoriasController> logger, IMemoryCache memoryCache) : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
         private readonly ILogger<CategoriasController> _logger = logger;
+        private readonly IMemoryCache _memoryCache = memoryCache;
+        private const string CacheCategoriasKey = "CacheCategorias";
 
         [HttpGet("pagination")]
         public async Task<ActionResult<IEnumerable<CategoriaDTO>>> ObterCategoriasPaginado([FromQuery] CategoriasParameters categoriasParameters)
@@ -43,10 +46,18 @@ namespace APICatalogo.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CategoriaDTO>>> ObterCategorias()
         {
-            var categorias = await _unitOfWork.CategoriaRepository.ObterTodosAsync();
-            if(categorias == null) return NotFound("Nenhuma categoria encontrada.");
+            if (!_memoryCache.TryGetValue(CacheCategoriasKey, out IEnumerable<Categoria>? categorias))
+            {
+                categorias = await _unitOfWork.CategoriaRepository.ObterTodosAsync();
+                if (categorias == null || !categorias.Any())
+                {
+                    _logger.LogWarning("Nenhuma categoria encontrada.");
+                    return NotFound("Nenhuma categoria encontrada.");
+                }
+                SetCache(CacheCategoriasKey, categorias);
+            }
 
-            return Ok(categorias.ToCategoriaDTOList());
+            return Ok(categorias?.ToCategoriaDTOList());
         }
 
         /// <summary>
@@ -59,14 +70,19 @@ namespace APICatalogo.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<CategoriaDTO>> ObterCategoria(int id)
         {
-            var categoria = await _unitOfWork.CategoriaRepository.ObterAsync(c => c.Id == id);
-            if (categoria == null)
+            var cacheKey = ObterCategoriaCaheKey(id);
+            if (!_memoryCache.TryGetValue(cacheKey, out Categoria? categoria))
             {
-                _logger.LogWarning($"Categoria com id: {id} não encontradaS");
-                return NotFound("Categoria não encontrada.");
+                categoria = await _unitOfWork.CategoriaRepository.ObterAsync(c => c.Id == id);
+                if (categoria == null)
+                {
+                    _logger.LogWarning($"Categoria com id: {id} não encontrada");
+                    return NotFound("Categoria não encontrada.");
+                }
+                SetCache(cacheKey, categoria);
             }
-
-            return Ok(categoria.ToCategoriaDTO());
+            
+            return Ok(categoria?.ToCategoriaDTO());
         }
 
         [HttpPost]
@@ -83,6 +99,8 @@ namespace APICatalogo.Controllers
             var categoriaCriada = _unitOfWork.CategoriaRepository.Inserir(categoria);
             await _unitOfWork.CommitAsync();
 
+            InvalidateCacheAfterChange(categoriaCriada.Id, categoriaCriada);
+
             var categoriaCriadaDTO = categoriaCriada.ToCategoriaDTO();
 
             return new CreatedAtRouteResult("ObterCategoria", new { id = categoriaCriadaDTO?.Id }, categoriaCriadaDTO);
@@ -91,7 +109,7 @@ namespace APICatalogo.Controllers
         [HttpPut("{id:int:min(1)}")]
         public async Task<ActionResult<CategoriaDTO>> AlterarCategoria(int id, CategoriaDTO dto)
         {
-            if (id != dto.Id)
+            if (id <= 0 || dto == null || id != dto.Id)
             {
                 _logger.LogWarning("Dados inválidos...");
                 return BadRequest("Categoria não encontrada.");
@@ -101,6 +119,8 @@ namespace APICatalogo.Controllers
 
             var categoriaAtualizadaDTO = _unitOfWork.CategoriaRepository.Alterar(categoria);
             await _unitOfWork.CommitAsync();
+
+            InvalidateCacheAfterChange(id, categoriaAtualizadaDTO);
 
             return Ok(categoriaAtualizadaDTO.ToCategoriaDTO());
         }
@@ -118,6 +138,9 @@ namespace APICatalogo.Controllers
             }
             var categoriaExcluida = _unitOfWork.CategoriaRepository.Remover(categoria);
             await _unitOfWork.CommitAsync();
+
+            InvalidateCacheAfterChange(id);
+
             return Ok(categoriaExcluida.Id);
         }
 
@@ -137,5 +160,23 @@ namespace APICatalogo.Controllers
             return Ok(categorias.ToCategoriaDTOList());
         }
 
+        private string ObterCategoriaCaheKey(int id) => $"CacheCategoria_{id}";
+        private void SetCache<T>(string key, T data)
+        {
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(120),
+                SlidingExpiration = TimeSpan.FromSeconds(30),
+                Priority = CacheItemPriority.High,
+            };
+            _memoryCache.Set(key, data, cacheOptions);
+        }
+        private void InvalidateCacheAfterChange(int id, Categoria? categoria = null)
+        {
+            _memoryCache.Remove(CacheCategoriasKey);
+            _memoryCache.Remove(ObterCategoriaCaheKey(id));
+            if (categoria != null)
+                SetCache(ObterCategoriaCaheKey(id), categoria);
+        }
     }
 }
