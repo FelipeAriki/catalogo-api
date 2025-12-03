@@ -1,0 +1,1 @@
+API criada baseada nas aulas do Professor Marcoratti: https://www.udemy.com/course/curso-web-api-asp-net-core-essencial utilizando as tecnologias: .NET 8, JWT Authentication, Memory Cache, Arquitetura limpa, Entity Framework e MySQL.
